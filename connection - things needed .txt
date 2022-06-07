@@ -1,0 +1,7 @@
+
+
+IPV4 (147.235.197.189)
+
+1. TODO IPV4 without NAT (network address translation)- ask from ISP static IPV4 not under NAT
+
+2. Port forwading from router to the server

@@ -1,17 +1,31 @@
 from enum import Enum
+
+
 class SQL_CONSTS:
     class TablesNames(str, Enum):
         WOMEN_DETAILS = 'women_details'
         CHILD_DETAILS = 'children_details'
-        
+
     class WOMEN_DETAILS_COLUMNS(str, Enum):
         IDENTIFIER = 'identifier'
-        EMAIL ='email'
+        EMAIL = 'email'
         MEDICAL_PROVIDER_NAME = 'medical_provider_name'
-        LAST_PERIOD_DATE ='last_period_date'
+        LAST_PERIOD_DATE = 'last_period_date'
         FULL_NAME = 'full_name'
         NUM_OF_PREGNENCY = 'num_of_pregnancy'
         BIRTHDAY = 'birthday'
+        PASSWORD = 'password'
+        ULTRASOUND_1 = 'ultrasound_1'
+        SISI_SHELIA = 'sisi_shelia'
+        SHKIFUT_ORPIT = 'shkifut_orpit'
+        SKIRAT_MARCHOT_MUKDEMET = 'skirat_marchot_mukdemet'
+        HELBON_UBARI = 'helbon_ubari'
+        DIKUR_MI_SHAFIR = 'dikur_mi_shafir'
+        SKIRAT_MARCHOT_MEUCHERET = 'skirat_marchot_meucheret'
+        HAMASAT_SUGARAR = 'hamasat_sugar'
+        ULTRASOUND_2 = 'ultrasound_2'
+        TARBIT_GBS = 'tabit_gbs'
+        NITUR_UBARI = 'nitur_ubari'
         PRIMARY_KEY = f'{IDENTIFIER}'
 
     class CHILDREN_DETAILS(str, Enum):
@@ -19,6 +33,18 @@ class SQL_CONSTS:
         MOTHER_ID = 'mother_id'
         FULL_NAME = 'full_name'
         BIRTHDAY = 'birthday'
+        BDIKA_ROFE_RISHONIT = 'bdika_rofe_rishonit'
+        TIPAT_HALAV_1 = 'tipat_halav_1'
+        TIPAT_HALAV_4_6_WEEKS = 'tipat_halav_4_6_weeks'
+        ULTRASOUND_PIRKI_YERICHAIM = 'ultrasound_pirki_yerichaim'
+        TIPAT_HALAV_2_MONTH = 'tipat_halav_2_month'
+        BDIKA_ROFE_YELADIM = 'bdika_rofe_yeladim'
+        TIPAT_HALAV_4_MONTH = 'tipat_halav_4_month'
+        TIPAT_HALAV_6_MONTH = 'tipat_halav_6_month'
+        TIPAT_HALAV_9_MONTH = 'tipat_halav_9_month'
+        BDIKAT_ITPATCHUT = 'bdikat_itpatchut'
+        SFIRAT_DAM = 'sfirat_dam'
+        TIPAT_HALAV_1_YEAR = 'tipat_halav_1_year'
+        TIPAT_HALAV_1_5_YEAR = 'tipat_halav_1_5_year'
+        TIPAT_HALAV_2_YEAR = 'tipat_halav_2_year'
         PRIMARY_KEY = f'{IDENTIFIER}'
-    
-    
