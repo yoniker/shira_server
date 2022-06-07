@@ -9,6 +9,11 @@ from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
+import os
+
+USERS_DATA_DIR = '/media/yoni/PapushDisk11/shira_data'
+
+EXAMINATIONS_INTERVALS = {'ultrasound_1':4} #In weeks
 
 app = Flask(__name__)
 postgres_client = PostTBD()  # TODO move to app.config
@@ -88,7 +93,12 @@ def get_child_id(child_id):
     if data is None:
         return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS:ERROR_CONSTS.STATUS_ERROR.MISSING_DETAILS}), 400
     data = dict(data)
+    user_the_jwt_belongs_to = get_jwt_identity()
+    if user_the_jwt_belongs_to != data[SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value]:
+        return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS: ERROR_CONSTS.STATUS_ERROR.ANOTHER_USER_LOGGED_IN}), 400
     return jsonify(data)
+
+
 
 
 @app.route('/save_child_details/', methods=['POST'])
@@ -115,6 +125,34 @@ def save_woman_details():
     postgres_client.add_woman(woman_details=woman_details)
     return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS:ERROR_CONSTS.STATUS_ERROR.OK})
 
+@app.route('/save_file/<child_id>', methods=['POST'])
+def save_child_file(child_id):
+    #TODO verify that the user is authorised
+    file_to_save = flask.request.files.get('uploaded_file_key', '')
+    full_path_filename = os.path.join(USERS_DATA_DIR,child_id,file_to_save.filename)
+    if os.path.isfile(full_path_filename): #The file exists so output an error
+        return jsonify({'status':'file already exists'}),400 #TODO should we let users override their own files?
+    os.makedirs(os.path.dirname(full_path_filename),exist_ok=True) #Create directory if doesnt exist
+    file_to_save.save(full_path_filename) #Save the file
+    return jsonify({'status':'success'})
+
+
+@app.route('/list_files/<child_id>', methods=['GET'])
+def list_child_files(child_id):
+    full_data_child_path = os.path.join(USERS_DATA_DIR, child_id)
+    if not os.path.isdir(full_data_child_path):
+        return jsonify({'files':[]})
+    return jsonify({'files':os.listdir(full_data_child_path)})
+
+@app.route('/get_file/<child_id>/<file_name>', methods=['GET'])
+def get_child_file(child_id,file_name):
+    full_child_file_path = os.path.join(USERS_DATA_DIR, child_id,file_name)
+    if not os.path.isfile(full_child_file_path):
+        return jsonify({'status': 'no such file found'}),401
+    return flask.send_file(full_child_file_path)
+
+
+    
 if __name__ == '__main__':
-    app.run(threaded=True, port=9000, host="0.0.0.0", debug=False, )
+    app.run(threaded=False, port=9000, host="0.0.0.0", debug=True, )
     # ssl_context=('keys/dordating.crt', 'keys/dordating.key'))

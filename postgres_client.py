@@ -7,8 +7,8 @@ import psycopg2.extras
 class PostTBD:
 
     def __init__(self):
-        connect_str = "dbname='final_project' user='postgres' host='localhost' " + \
-                      "password='1234'"
+        connect_str = "dbname='shira' user='yoni' host='localhost' " + \
+                      "password='dor'"
         self.conn = psycopg2.connect(connect_str)
         self.conn.autocommit = True
 
@@ -108,7 +108,7 @@ class PostTBD:
                 f"{SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_6_MONTH.value} boolean default false, {SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_9_MONTH.value} boolean default false,"
                 f"{SQL_CONSTS.CHILDREN_DETAILS.BDIKAT_ITPATCHUT.value} boolean default false, {SQL_CONSTS.CHILDREN_DETAILS.SFIRAT_DAM.value} boolean default false,"
                 f"{SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_1_YEAR.value} boolean default false, {SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_1_5_YEAR.value} boolean default false,"
-                f"{SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_2_YEAR.value}boolean default false,"
+                f"{SQL_CONSTS.CHILDREN_DETAILS.TIPAT_HALAV_2_YEAR.value} boolean default false,"
                 f" FOREIGN KEY({SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value}) REFERENCES {SQL_CONSTS.TablesNames.WOMEN_DETAILS.value}({SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value}) , "
                 f"primary key({SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value}));"
             )
