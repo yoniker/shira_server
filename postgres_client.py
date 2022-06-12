@@ -12,12 +12,12 @@ class PostTBD:
         self.conn = psycopg2.connect(connect_str)
         self.conn.autocommit = True
 
-    def _update_table_by_dict(self, table_name, data, primary_key, columns=None):
+    def _update_table_by_dict(self, table_name, data, key_update_table, columns=None):
         '''
         Args:
             table_name:
             data: dictionary with keys=column names, and values=values to insert at those columns
-            primary_key:
+            key_update_table:
             columns: a columns enum str mixin class for which we can check that the data has the keys that we expect
         Returns:
         '''
@@ -34,19 +34,19 @@ class PostTBD:
                 print(cursor.mogrify(insert, data))
                 cursor.execute(insert, data)
 
-        except UniqueViolation as _:
+        except (UniqueViolation,psycopg2.errors.NotNullViolation) as _:
             with self.conn.cursor() as cursor:
                 update = f'update {table_name} set '
                 update += ','.join([f' {k}=%({k})s ' for k in data.keys()])
-                if primary_key[0] == '(':  # multiple value primary key
-                    if primary_key[-1] != ')':
+                if key_update_table[0] == '(':  # multiple value primary key
+                    if key_update_table[-1] != ')':
                         raise ValueError('Bad multiple primary key')
-                    columns_names = primary_key[1:-1].split(',')
+                    columns_names = key_update_table[1:-1].split(',')
                     primary_key_str = ','.join([f'%({column_name})s' for column_name in columns_names])
                     primary_key_str = '(' + primary_key_str + ')'
                 else:
-                    primary_key_str = f'%({primary_key})s'
-                update += f" where {primary_key}={primary_key_str}"
+                    primary_key_str = f'%({key_update_table})s'
+                update += f" where {key_update_table}={primary_key_str}"
                 print(cursor.mogrify(update, data))
                 cursor.execute(update, data)
 
@@ -60,6 +60,7 @@ class PostTBD:
                 f"CREATE TABLE {SQL_CONSTS.TablesNames.WOMEN_DETAILS.value} ( {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value} varchar NOT NULL, "
                 f" {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value} varchar, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.MEDICAL_PROVIDER_NAME.value} varchar, "
                 f"{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.LAST_PERIOD_DATE.value} date, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value} varchar NOT NULL, "
+                f"{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FORGOT_PASSWORD_LINK_SECRET.value} varchar, "
                 f"{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.NUM_OF_PREGNENCY} integer, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.BIRTHDAY.value} date, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value} varchar NOT NULL , "
                 f"{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.ULTRASOUND_1.value} boolean default false, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.SISI_SHELIA.value} boolean default false,"
                 f"{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.SHKIFUT_ORPIT.value} boolean default false, {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.SKIRAT_MARCHOT_MUKDEMET.value} boolean default false,"
@@ -71,9 +72,9 @@ class PostTBD:
             )
             return
 
-    def add_woman(self, woman_details):
+    def save_woman_details(self, woman_details, key_update_table = SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.WOMEN_DETAILS.value, data=woman_details,
-                                          primary_key=SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value)
+                                          key_update_table=key_update_table)
 
     def get_woman_details(self, woman_id):
         with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
@@ -82,7 +83,15 @@ class PostTBD:
                 (woman_id,))
             results = cursor.fetchall()
             return results[0] if len(results) > 0 else None
-
+    
+    
+    def get_woman_by_email(self,woman_email):
+        with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+            cursor.execute(
+                f"select * from {SQL_CONSTS.TablesNames.WOMEN_DETAILS.value} where {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value} = %s",
+                (woman_email,))
+            results = cursor.fetchall()
+            return dict(results[0]) if len(results) > 0 else None
     '''create children table sql'''
 
     def create_child_table(self):
@@ -115,7 +124,7 @@ class PostTBD:
 
     def add_child(self, child_details):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.CHILD_DETAILS.value, data=child_details,
-                                          primary_key=SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value)
+                                          key_update_table=SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value)
 
     def get_child_details(self, child_id):
         with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
@@ -147,7 +156,7 @@ class PostTBD:
         """
         with self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
             cursor.execute(
-                f"select * from {SQL_CONSTS.CHILDREN_DETAILS.value} join {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.value} on {SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value}={SQL_CONSTS.TablesNames.WOMEN_DETAILS.value}.{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value} "
+                f"select * from {SQL_CONSTS.TablesNames.CHILD_DETAILS.value} join {SQL_CONSTS.TablesNames.WOMEN_DETAILS.value} on {SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value}={SQL_CONSTS.TablesNames.WOMEN_DETAILS.value}.{SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value} "
                 f" where date_trunc('day','now'::timestamp - {SQL_CONSTS.TablesNames.CHILD_DETAILS.value}.{SQL_CONSTS.CHILDREN_DETAILS.BIRTHDAY.value})< interval '%s day'"
                 , (days_from_birthday,))
     

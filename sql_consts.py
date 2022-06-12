@@ -15,6 +15,7 @@ class SQL_CONSTS:
         NUM_OF_PREGNENCY = 'num_of_pregnancy'
         BIRTHDAY = 'birthday'
         PASSWORD = 'password'
+        FORGOT_PASSWORD_LINK_SECRET = 'forgot_password_link_secret'
         ULTRASOUND_1 = 'ultrasound_1'
         SISI_SHELIA = 'sisi_shelia'
         SHKIFUT_ORPIT = 'shkifut_orpit'

@@ -14,6 +14,8 @@ import requests
 import time
 import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
+import random
+import string
 
 EXAMINATIONS_INTERVALS = {'ultrasound_1': 6, 'sisi_shelia' : 10, 'shkifut_orpit' : 11, 'skirat_marchot_mukdemet' : 14, 'helbon_ubari' : 16,
                           'dikur_mi_shafir' : 16, 'skirat_marchot_meucheret' : 19, 'hamasat_sugar' : 24, 'ultrasound_2' : 30,
@@ -34,12 +36,12 @@ app = Flask(__name__)
 postgres_client = PostTBD()  # TODO move to app.config
 
 
-def send_email(email,content):
+def send_email(email, content, subject='Notification'):
     if email is None or len(email)==0:
         return #Not a valid email address TODO use regex that it is a valid email
     print(f'Will send {content} to {email}')
     requests.post('http://shira.voilaserver.com/shira/send_email',
-                  json={"sender":"finalprojecttest22@gmail.com","to_address":email,"subject":"Notification","text_message":content})
+                  json={"sender":"finalprojecttest22@gmail.com","to_address":email,"subject":subject, "text_message":content})
 
 def notify_examination(email, woman_name, examination_name):
     send_email(email=email,content=(
@@ -74,7 +76,7 @@ def send_notifications():
                                    woman_name=woman.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value,'Dear'),
                                    examination_name=examination_name)
                 
-    for vaccine_name,age_months in VACCINES_INTERVALS:
+    for vaccine_name,age_months in VACCINES_INTERVALS.items():
         relevant_children_details = postgres_client.get_children_by_days_from_birthday(days_from_birthday=age_months*30-EMAIL_REMINDER_DAYS_BEFORE_VACCINE)
         for child in relevant_children_details:
             if not child.get(vaccine_name,False):
@@ -115,14 +117,66 @@ def login():
 @app.route("/register/", methods=["POST"])
 def register():
     username = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value, None)
-    password = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value, None)
-    full_name = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value, None)
     actual_user_details = postgres_client.get_woman_details(woman_id=username)  # In other apps user_id could be different than username so this might have been different
     if actual_user_details is not None:
         return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS: ERROR_CONSTS.STATUS_ERROR.USER_ALREADY_EXIST}), 401
 
-    postgres_client.add_woman(woman_details = request.json)
+    postgres_client.save_woman_details(woman_details = request.json)
     return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS:ERROR_CONSTS.STATUS_ERROR.SUCCESSFUL_LOGIN})
+
+
+def produce_random_string(length):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+@app.route('/forgot_password',methods=["POST"])
+def forgot_password():
+    '''
+    If the user forgot password, randomize a secret string which will be used in the link
+    '''
+    dict_str = request.data.decode("UTF-8")
+    user_details = ast.literal_eval(dict_str)
+    email = user_details.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value,'')
+    #TODO save a secret string for the user, send the user the url from which they can get a temporary password
+    secret_string = produce_random_string(length = 30)
+    email_reset_url = f'http://localhost:9000/change_password/{secret_string}/{email}'
+    user = postgres_client.get_woman_by_email(woman_email=email)
+    if user is None:
+        return jsonify({'status':'no such email exists'}) , 404
+    postgres_client.save_woman_details(
+        woman_details={SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value:email,
+                       SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:user.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value,''),
+                       SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FORGOT_PASSWORD_LINK_SECRET:secret_string
+                       })
+    send_email(email=email,subject='Reset email link',content=(
+        "Hi! A password change was requested, and is available at "
+        f"{email_reset_url}"
+    ))
+    
+    return jsonify({'status':'reset password email was sent'})
+    
+    
+    
+
+@app.route('/change_password/<secret_string>/<email>')
+def change_password_to_temp_password(secret_string,email):
+    user = postgres_client.get_woman_by_email(woman_email=email)
+    if user is None:
+        return jsonify({'status':'Bad link:No such email exists'}) , 404
+    if user.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FORGOT_PASSWORD_LINK_SECRET.value,produce_random_string(length=30)) != secret_string:
+        return jsonify({'status': 'Bad link'}), 404
+    new_password = produce_random_string(length=10)
+    user[SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value] = new_password
+    postgres_client.save_woman_details(user)
+    send_email(email=user.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value,''),subject='Your new password to Dor',content=(
+        'Hi! Your password was reset.\n'
+        f'Your new password is:{new_password}\n'
+        f'Please keep it somewhere safe.\n'
+        'Yours truly,\n'
+        'Dor.'
+    ))
+    
+    return jsonify({'status':'email with new password was sent'})
+    
 
 
 @app.route('/hello', methods=['GET'])
@@ -180,7 +234,7 @@ def save_woman_details():
     dict_str = request.data.decode("UTF-8")
     woman_details = ast.literal_eval(dict_str)
     # TODO verify mother id if exists versus provided JWT
-    postgres_client.add_woman(woman_details=woman_details)
+    postgres_client.save_woman_details(woman_details=woman_details)
     return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS:ERROR_CONSTS.STATUS_ERROR.OK})
 
 @app.route('/save_file/<child_id>', methods=['POST'])
