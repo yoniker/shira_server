@@ -2,20 +2,71 @@ import requests
 from sql_consts import SQL_CONSTS
 import ast
 #
-# mother_details = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:'1111',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value:'Woman 1', SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: '123456'}
-# #requests.post(url='http://localhost:9000/save_woman_details/',json=mother_details)
+import datetime
+import json
+import random
+
+
+from datetime import date, datetime
+
+#So that we are able to convert datetime to json
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError ("Type %s not serializable" % type(obj))
+
+
+def login_as_woman_by_id(woman_id,password = '123456'):
+    '''
+    
+    
+    :param woman_id:
+    :return:
+    '''
+
+    login_data = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:f'{woman_id}',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: password}
+    response = requests.post(url='http://localhost:9000/login/',json=login_data)
+    response_str = response.content.decode()
+    response_body = ast.literal_eval(response_str)
+    jwt_token = response_body['access_token']
+    return jwt_token
+
+
+def fill_children_table(num_children = 10000, num_mothers = 999):
+
+
+    for i in range(1,num_children+1):
+        mother_id = random.randint(1,num_mothers)
+        jwt_token = login_as_woman_by_id(mother_id)
+        child_details={SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value : f'{i}', SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value:f'{mother_id}',
+               SQL_CONSTS.CHILDREN_DETAILS.BIRTHDAY.value: json.dumps(datetime(year=random.randint(2018,2022),month=random.randint(1,12),day=random.randint(1,28)),default=json_serial)
+               }
+        requests.post(url='http://localhost:9000/save_child_details/',json=child_details,headers = {"Authorization":'Bearer '+jwt_token})
+
+fill_children_table()
+
+
+# for i in range(2,1000):
 #
+#     mother_details = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:f'{i}',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value:f'Woman {i}', SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: '123456',
+#                       SQL_CONSTS.WOMEN_DETAILS_COLUMNS.LAST_PERIOD_DATE:json.dumps(datetime(year=random.randint(2018,2022),month=random.randint(1,12),day=random.randint(1,28)),default=json_serial)}
+#     requests.post(url='http://localhost:9000/register/',json=mother_details)
+
+
+
 # child={SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value : '1234', SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value:'1111'}
 # requests.post(url='http://localhost:9000/save_child_details/',json=child)
 
 # register_data = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:'8888',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: 'password', SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value:'shira'}
 # requests.post(url='http://localhost:9000/register/',json=register_data)
-login_data = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:'8888',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: 'password'}
-response = requests.post(url='http://localhost:9000/login/',json=login_data)
-response_str = response.content.decode()
-response_body = ast.literal_eval(response_str)
-jwt_token = response_body['access_token']
-woman_details_response = requests.get(url='http://localhost:9000/get_woman_details/8888', headers = {"Authorization":'Bearer '+jwt_token });
+# login_data = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value:'8888',SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: 'password'}
+# response = requests.post(url='http://localhost:9000/login/',json=login_data)
+# response_str = response.content.decode()
+# response_body = ast.literal_eval(response_str)
+# jwt_token = response_body['access_token']
+# woman_details_response = requests.get(url='http://localhost:9000/get_woman_details/8888', headers = {"Authorization":'Bearer '+jwt_token });
 #print(woman_details_response)
 # child={SQL_CONSTS.CHILDREN_DETAILS.IDENTIFIER.value : '1234', SQL_CONSTS.CHILDREN_DETAILS.MOTHER_ID.value:'8888'}
 # response = requests.post(url='http://localhost:9000/save_child_details/',json=child, headers = {"Authorization":'Bearer '+jwt_token })

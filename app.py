@@ -10,14 +10,86 @@ from flask_jwt_extended import get_jwt_identity
 from flask_jwt_extended import jwt_required
 from flask_jwt_extended import JWTManager
 import os
+import requests
+import time
+import atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+
+EXAMINATIONS_INTERVALS = {'ultrasound_1': 6, 'sisi_shelia' : 10, 'shkifut_orpit' : 11, 'skirat_marchot_mukdemet' : 14, 'helbon_ubari' : 16,
+                          'dikur_mi_shafir' : 16, 'skirat_marchot_meucheret' : 19, 'hamasat_sugar' : 24, 'ultrasound_2' : 30,
+                          'tarbit_gbs' : 35, 'nitur_ubari' : 38}  # In weeks
+
+VACCINES_INTERVALS = {'tzhevet_b_mana_1' : 0, 'tzhevet_b_mana_2' : 1, 'tzhevet_b_mana_3' : 6, 'paletzet_mana_1' : 2, 'paletzet_mana_2' : 4, 'paletzet_mana_3' : 6, 'paletzet_mana_4' : 12,
+                      'polio_1' : 6, 'polio_2' : 18, 'hemofilos_mana_1' : 2, 'hemofilos_mana_2' : 4, 'hemofilos_mana_3' : 6, 'hemofilos_mana_4' : 12, 'pnoimokok_nama_1' : 2, 'pnoimokok_nama_2' : 4, 'pnoimokok_nama_3' : 12,
+                      'negif_rota_mana_1' : 2, 'negif_rota_mana_2' : 4, 'negif_rota_mana_3' : 6, 'hatzevet_hazeret_ademet_hababuot' : 12,
+                      'tzhevet_a_mana_1' : 18, 'tzhevet_a_mana_2' : 24} #in month
+
 
 USERS_DATA_DIR = '/media/yoni/PapushDisk11/shira_data'
 
-EXAMINATIONS_INTERVALS = {'ultrasound_1':4} #In weeks
+WOMEN_EMAIL_REMINDER_DAYS_BEFORE_EXAMINATION = 3
+EMAIL_REMINDER_DAYS_BEFORE_VACCINE = 3
 
 app = Flask(__name__)
 postgres_client = PostTBD()  # TODO move to app.config
 
+
+def send_email(email,content):
+    if email is None or len(email)==0:
+        return #Not a valid email address TODO use regex that it is a valid email
+    print(f'Will send {content} to {email}')
+    requests.post('http://shira.voilaserver.com/shira/send_email',
+                  json={"sender":"finalprojecttest22@gmail.com","to_address":email,"subject":"Notification","text_message":content})
+
+def notify_examination(email, woman_name, examination_name):
+    send_email(email=email,content=(
+        
+        f"Hi {woman_name}!"
+        f"This is a reminder that in {WOMEN_EMAIL_REMINDER_DAYS_BEFORE_EXAMINATION} day, "
+        f" you have to take the examination {examination_name}!"
+        f"Truly yours,"
+        f"Dor."
+        
+    ))
+
+
+def notify_vaccine(email, woman_name,child_name, vaccine_name):
+    send_email(email=email, content=(
+        
+        f"Hi {woman_name}!"
+        f"This is a reminder that in {WOMEN_EMAIL_REMINDER_DAYS_BEFORE_EXAMINATION} day, "
+        f" you have to take your child {child_name} to take the vaccine {vaccine_name}!"
+        f"Truly yours,"
+        f"Dor."
+    
+    ))
+
+def send_notifications():
+    #Iterate over women examinations and send a notification if needed
+    for examination_name,weeks_into_pregnancy in EXAMINATIONS_INTERVALS.items():
+        women_to_notify = postgres_client.get_women_by_days_from_last_period(weeks_into_pregnancy*7-WOMEN_EMAIL_REMINDER_DAYS_BEFORE_EXAMINATION)
+        for woman in women_to_notify:
+            if not woman.get(examination_name,False): #If the woman didn't take the examination yet
+                notify_examination(email=woman.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value, ''),
+                                   woman_name=woman.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value,'Dear'),
+                                   examination_name=examination_name)
+                
+    for vaccine_name,age_months in VACCINES_INTERVALS:
+        relevant_children_details = postgres_client.get_children_by_days_from_birthday(days_from_birthday=age_months*30-EMAIL_REMINDER_DAYS_BEFORE_VACCINE)
+        for child in relevant_children_details:
+            if not child.get(vaccine_name,False):
+                notify_vaccine(email = child.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value,''),
+                               woman_name=child.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value),
+                               child_name=child.get(SQL_CONSTS.CHILDREN_DETAILS.CHILD_NAME.value,''),
+                               vaccine_name=vaccine_name)
+
+send_notifications()
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=send_notifications, trigger="interval", seconds=60*60*24)
+scheduler.start()
+
+# Shut down the scheduler when exiting the app
+atexit.register(lambda: scheduler.shutdown())
 '''
 for security, we are going to use JWT so that the server won't have to remember a temporary session token
 The client has to add the JWT token to each request (via the standrad header "Authorization")
@@ -45,25 +117,11 @@ def register():
     username = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value, None)
     password = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value, None)
     full_name = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value, None)
-    optional_birthday = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.BIRTHDAY.value, None)
-    optional_email = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value, None)
-    optional_hmo = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.MEDICAL_PROVIDER_NAME.value, None)
-    optional_last_period_date = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.LAST_PERIOD_DATE.value, None)
-    optional_num_of_pregnancy = request.json.get(SQL_CONSTS.WOMEN_DETAILS_COLUMNS.NUM_OF_PREGNENCY.value, None)
     actual_user_details = postgres_client.get_woman_details(woman_id=username)  # In other apps user_id could be different than username so this might have been different
     if actual_user_details is not None:
         return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS: ERROR_CONSTS.STATUS_ERROR.USER_ALREADY_EXIST}), 401
-    woman_details = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.PASSWORD.value: password,
-                     SQL_CONSTS.WOMEN_DETAILS_COLUMNS.IDENTIFIER.value: username,
-                     SQL_CONSTS.WOMEN_DETAILS_COLUMNS.FULL_NAME.value: full_name}
-    if optional_birthday is not None or optional_email is not None or optional_hmo is not None or optional_last_period_date is not None or optional_num_of_pregnancy is not None:
-        woman_details = {SQL_CONSTS.WOMEN_DETAILS_COLUMNS.BIRTHDAY.value: optional_birthday,
-                      SQL_CONSTS.WOMEN_DETAILS_COLUMNS.EMAIL.value: optional_email,
-                      SQL_CONSTS.WOMEN_DETAILS_COLUMNS.MEDICAL_PROVIDER_NAME.value: optional_hmo,
-                      SQL_CONSTS.WOMEN_DETAILS_COLUMNS.LAST_PERIOD_DATE.value: optional_last_period_date,
-                      SQL_CONSTS.WOMEN_DETAILS_COLUMNS.NUM_OF_PREGNENCY.value: optional_num_of_pregnancy}
 
-    postgres_client.add_woman(woman_details = woman_details)
+    postgres_client.add_woman(woman_details = request.json)
     return jsonify({ERROR_CONSTS.STATUS_ERROR.STATUS:ERROR_CONSTS.STATUS_ERROR.SUCCESSFUL_LOGIN})
 
 
